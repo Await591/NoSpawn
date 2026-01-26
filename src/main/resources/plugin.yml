@@ -3,15 +3,15 @@ version: '${version}'
 main: art.await591.nospawn.NoSpawnPlugin
 api-version: '1.20'
 prefix: NoSpawn
-authors: [await591]
-description: 限制指定区域内不生成怪物
+authors: [R4c]
+description: 限制指定区域内不生成怪物，支持虚拟墙壁和边界可视化
 website: https://github.com/await591/NoSpawnPlugin
 
 commands:
   nospawn:
-    description: 管理插件配置
+    description: 管理插件配置和边界可视化
     aliases: [ns]
-    usage: /nospawn <reload|status|toggle|setradius|log>
+    usage: /nospawn <help|reload|toggle|log|visualize|mode|status>
     permission: nospawn.use
 
 permissions:
@@ -27,6 +27,15 @@ permissions:
   nospawn.log:
     description: 允许管理日志
     default: op
+  nospawn.visualize:
+    description: 允许使用边界可视化功能
+    default: op
+  nospawn.mode:
+    description: 允许切换区域模式
+    default: op
+  nospawn.virtualwall:
+    description: 受虚拟墙壁保护（默认所有玩家）
+    default: true
   nospawn.admin:
     description: 允许所有管理权限
     default: op
@@ -35,3 +44,6 @@ permissions:
       nospawn.reload: true
       nospawn.toggle: true
       nospawn.log: true
+      nospawn.visualize: true
+      nospawn.mode: true
+      nospawn.virtualwall: true
