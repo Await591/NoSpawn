@@ -1,0 +1,37 @@
+name: NoSpawnPlugin
+version: '${version}'
+main: art.await591.nospawn.NoSpawnPlugin
+api-version: '1.20'
+prefix: NoSpawn
+authors: [await591]
+description: 限制指定区域内不生成怪物
+website: https://github.com/await591/NoSpawnPlugin
+
+commands:
+  nospawn:
+    description: 管理插件配置
+    aliases: [ns]
+    usage: /nospawn <reload|status|toggle|setradius|log>
+    permission: nospawn.use
+
+permissions:
+  nospawn.use:
+    description: 允许使用基础命令
+    default: op
+  nospawn.reload:
+    description: 允许重载配置
+    default: op
+  nospawn.toggle:
+    description: 允许开关插件
+    default: op
+  nospawn.log:
+    description: 允许管理日志
+    default: op
+  nospawn.admin:
+    description: 允许所有管理权限
+    default: op
+    children:
+      nospawn.use: true
+      nospawn.reload: true
+      nospawn.toggle: true
+      nospawn.log: true

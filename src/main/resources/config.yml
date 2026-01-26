@@ -1,0 +1,67 @@
+# 配置文件
+# 修改后使用 /ns reload 重载
+
+# 总开关
+enabled: true
+
+# 阻止所有敌对怪物
+# true: 阻止所有 Monster 类型的实体
+# false: 仅阻止 blocked-mobs 列表中定义的怪物
+block-all-monsters: true
+
+# 区域设置（以出生点或自定义坐标为中心的球形区域）
+region:
+  # 目标世界名称（通常是 world）
+  world: "world"
+  # 保护半径（米/格）
+  radius: 100
+  # 是否使用自定义中心点
+  # false: 自动使用世界的出生点 (Spawn Location)
+  # true: 使用下方配置的 center-x/y/z
+  use-custom-center: false
+  center-x: 0
+  center-y: 64
+  center-z: 0
+
+# 自定义禁止生成的怪物列表
+# 仅当 block-all-monsters 为 false 时生效
+# 实体名称参考: https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/entity/EntityType.html
+blocked-mobs:
+  - ZOMBIE
+  - SKELETON
+  - CREEPER
+  - SPIDER
+  - ENDERMAN
+  - WITCH
+  - PHANTOM
+
+# 排除的生成原因（白名单）
+# 即使在保护区内，如果是因为以下原因生成的，将允许生成
+# 常用原因:
+# SPAWNER: 刷怪笼
+# SPAWNER_EGG: 刷怪蛋
+# BREEDING: 繁殖
+# CUSTOM: 插件自定义
+excluded-spawn-reasons:
+  - SPAWNER
+  - SPAWNER_EGG
+
+# 日志记录设置
+logging:
+  # 是否启用日志记录功能
+  enabled: false
+  # 是否同时输出到服务器控制台
+  console-output: false
+  # 日志文件保存目录 (相对插件数据文件夹)
+  directory: "logs"
+  # 日志文件名格式 (基于Java SimpleDateFormat)
+  filename-format: "yyyy-MM-dd'.log'"
+  # 单条日志格式
+  # 可用占位符:
+  #   {TIME} - 时间 (HH:mm:ss)
+  #   {WORLD} - 世界名
+  #   {X}, {Y}, {Z} - 坐标
+  #   {ENTITY} - 实体类型名
+  #   {REASON} - 生成原因
+  #   {CONTEXT} - 上下文信息
+  entry-format: "[{TIME}] [{WORLD}] {ENTITY} 在 ({X}, {Y}, {Z}) 的生成被阻止。原因: {REASON}{CONTEXT}"
