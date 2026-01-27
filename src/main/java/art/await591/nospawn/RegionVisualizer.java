@@ -82,10 +82,10 @@ public class RegionVisualizer implements Listener {
         }
         enterMessage = ChatColor.translateAlternateColorCodes('&',
                 plugin.getConfig().getString("virtual-wall.enter-message",
-                        "&c[警告] 你已进入保护区，禁止生成怪物！"));
+                        "&a[提示] 你已进入保护区，保护区域无怪物生成"));
         leaveMessage = ChatColor.translateAlternateColorCodes('&',
                 plugin.getConfig().getString("virtual-wall.leave-message",
-                        "&a[提示] 你已离开保护区"));
+                        "&c[警告] 你已离开保护区，保护区域外怪物正常生成"));
         pushBackStrength = plugin.getConfig().getDouble("virtual-wall.push-back-strength", 0.3);
         playSound = plugin.getConfig().getBoolean("virtual-wall.play-sound", true);
 

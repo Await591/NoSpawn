@@ -76,9 +76,9 @@ virtual-wall:
   # 玩家进入保护区时的反馈类型：NONE, MESSAGE, PUSH_BACK, BOTH
   feedback-type: "MESSAGE"
   # 进入保护区提示消息（支持颜色代码&）
-  enter-message: "&c[提示] 你已进入保护区，保护区域无怪物生成"
+  enter-message: "&a[提示] 你已进入保护区，保护区域无怪物生成"
   # 离开保护区提示消息（支持颜色代码&）
-  leave-message: "&a[警告] 你已离开保护区，保护区域外怪物正常生成"
+  leave-message: "&c[警告] 你已离开保护区，保护区域外怪物正常生成"
   # 击退强度 (0.0-2.0)
   push-back-strength: 0.3
   # 是否播放警告音效
