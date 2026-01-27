@@ -13,33 +13,67 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * NoSpawn插件命令处理器
+ *
+ * <p>处理 /nospawn 和 /ns 命令的所有子命令，包括：
+ * help, reload, toggle, log, visualize, mode, status</p>
+ *
+ * @author await591
+ */
 public class NoSpawnCommand implements CommandExecutor, TabCompleter {
+
+    /** 插件主类实例 */
     private final NoSpawnPlugin plugin;
+
+    /** 所有可用的子命令列表 */
     private static final List<String> SUB_COMMANDS = Arrays.asList(
             "help", "reload", "toggle", "log", "visualize", "mode", "status"
     );
+
+    /** 模式命令的选项 */
     private static final List<String> MODE_OPTIONS = Arrays.asList("circle", "square");
+
+    /** 可视化命令的选项 */
     private static final List<String> VISUALIZE_OPTIONS = Arrays.asList("on", "off");
 
+    /**
+     * 构造命令处理器
+     *
+     * @param plugin 插件主类实例
+     */
     public NoSpawnCommand(NoSpawnPlugin plugin) {
         this.plugin = plugin;
     }
 
+    /**
+     * 处理命令执行
+     *
+     * @param sender 命令发送者
+     * @param command 命令对象
+     * @param label 命令标签
+     * @param args 命令参数
+     * @return 如果命令处理成功则返回true
+     */
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, @NotNull String[] args) {
+        // 权限检查
         if (!sender.hasPermission("nospawn.use") && !sender.hasPermission("nospawn.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有权限使用此命令。");
             return true;
         }
 
+        // 无参数或help参数时显示帮助
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             sendHelp(sender);
             return true;
         }
 
+        // 获取子命令并转换为小写
         String subCommand = args[0].toLowerCase();
 
+        // 根据子命令执行相应操作
         switch (subCommand) {
             case "reload":
                 handleReload(sender);
@@ -66,6 +100,11 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * 处理 reload 子命令
+     *
+     * @param sender 命令发送者
+     */
     private void handleReload(CommandSender sender) {
         if (!sender.hasPermission("nospawn.reload") && !sender.hasPermission("nospawn.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有重载配置的权限。");
@@ -75,17 +114,29 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GREEN + "[NoSpawn] 配置已重载");
     }
 
+    /**
+     * 处理 toggle 子命令
+     *
+     * @param sender 命令发送者
+     */
     private void handleToggle(CommandSender sender) {
         if (!sender.hasPermission("nospawn.toggle") && !sender.hasPermission("nospawn.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有开关插件的权限。");
             return;
         }
+        // 切换插件状态
         boolean newState = !plugin.isPluginEnabled();
         plugin.setPluginEnabled(newState);
         sender.sendMessage(ChatColor.YELLOW + "[NoSpawn] 插件状态: " +
                 (newState ? ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
     }
 
+    /**
+     * 处理 log 子命令
+     *
+     * @param sender 命令发送者
+     * @param args 命令参数
+     */
     private void handleLog(CommandSender sender, String[] args) {
         if (!sender.hasPermission("nospawn.log") && !sender.hasPermission("nospawn.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有管理日志的权限。");
@@ -95,18 +146,26 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ChatColor.RED + "用法: /ns log <on|off>");
             return;
         }
+        // 解析日志状态
         boolean logState = args[1].equalsIgnoreCase("on");
         plugin.getLoggerManager().setEnabled(logState);
         sender.sendMessage(ChatColor.GREEN + "[NoSpawn] 日志记录已 " +
                 (logState ? ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
     }
 
+    /**
+     * 处理 visualize 子命令
+     *
+     * @param sender 命令发送者
+     * @param args 命令参数
+     */
     private void handleVisualize(CommandSender sender, String[] args) {
         if (!sender.hasPermission("nospawn.visualize") && !sender.hasPermission("nospawn.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有可视化权限。");
             return;
         }
 
+        // 只允许玩家使用此命令
         if (!(sender instanceof Player)) {
             sender.sendMessage(ChatColor.RED + "只有玩家可以使用可视化命令。");
             return;
@@ -119,6 +178,7 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // 处理可视化开关
         if (args[1].equalsIgnoreCase("on")) {
             plugin.getVisualizer().createBoundaryVisualization(player);
         } else if (args[1].equalsIgnoreCase("off")) {
@@ -128,6 +188,12 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /**
+     * 处理 mode 子命令
+     *
+     * @param sender 命令发送者
+     * @param args 命令参数
+     */
     private void handleMode(CommandSender sender, String[] args) {
         if (!sender.hasPermission("nospawn.mode") && !sender.hasPermission("nospawn.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有切换模式的权限。");
@@ -141,6 +207,7 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // 解析新模式
         String modeStr = args[1].toLowerCase();
         NoSpawnPlugin.RegionMode newMode;
 
@@ -153,6 +220,7 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // 应用新模式
         plugin.setRegionMode(newMode);
         plugin.loadSettings();
 
@@ -161,6 +229,11 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GRAY + "区域描述: " + plugin.getRegionDescription());
     }
 
+    /**
+     * 发送插件状态信息
+     *
+     * @param sender 命令发送者
+     */
     private void sendStatus(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "=== NoSpawnPlugin 状态 ===");
         sender.sendMessage(ChatColor.YELLOW + "插件状态: " +
@@ -180,6 +253,11 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                         ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
     }
 
+    /**
+     * 发送帮助信息
+     *
+     * @param sender 命令发送者
+     */
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.AQUA + "=== NoSpawnPlugin 帮助 (" +
                 ChatColor.YELLOW + "/ns 或 /nospawn" + ChatColor.AQUA + ") ===");
@@ -199,6 +277,15 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                 ChatColor.GRAY + " - 查看插件状态");
     }
 
+    /**
+     * 处理Tab补全
+     *
+     * @param sender 命令发送者
+     * @param command 命令对象
+     * @param alias 命令别名
+     * @param args 命令参数
+     * @return 补全建议列表
+     */
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender,
                                                 @NotNull Command command,
@@ -206,19 +293,24 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                                                 @NotNull String[] args) {
         List<String> completions = new ArrayList<>();
 
+        // 第一个参数：补全子命令
         if (args.length == 1) {
             for (String sub : SUB_COMMANDS) {
                 if (sub.startsWith(args[0].toLowerCase())) {
                     completions.add(sub);
                 }
             }
-        } else if (args.length == 2) {
+        }
+        // 第二个参数：根据子命令补全选项
+        else if (args.length == 2) {
             switch (args[0].toLowerCase()) {
                 case "log":
+                    // 补全 on/off
                     if ("on".startsWith(args[1].toLowerCase())) completions.add("on");
                     if ("off".startsWith(args[1].toLowerCase())) completions.add("off");
                     break;
                 case "visualize":
+                    // 补全 on/off
                     for (String opt : VISUALIZE_OPTIONS) {
                         if (opt.startsWith(args[1].toLowerCase())) {
                             completions.add(opt);
@@ -226,6 +318,7 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                     }
                     break;
                 case "mode":
+                    // 补全 circle/square
                     for (String mode : MODE_OPTIONS) {
                         if (mode.startsWith(args[1].toLowerCase())) {
                             completions.add(mode);
