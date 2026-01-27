@@ -3,10 +3,10 @@ package art.await591.nospawn;
 import org.bukkit.*;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -16,51 +16,119 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.io.*;
 import org.bukkit.configuration.file.YamlConfiguration;
-
+/**
+ * 区域可视化管理器
+ *
+ * <p>提供两个主要功能：
+ * 1. 虚拟墙壁：检测玩家进入/离开保护区并给予反馈（消息、击退、音效）
+ * 2. 边界可视化：使用盔甲架在3D空间中显示保护区域的边界</p>
+ *
+ * @author await591
+ */
 public class RegionVisualizer implements Listener {
+    /** 插件主类实例 */
     private final NoSpawnPlugin plugin;
 
-    // 虚拟墙壁配置
+    // ========== 虚拟墙壁配置字段 ==========
+    /** 虚拟墙壁是否启用 */
     private boolean virtualWallEnabled;
+
+    /** 反馈类型（无、消息、击退、两者） */
     private FeedbackType feedbackType;
+
+    /** 进入保护区时显示的消息 */
     private String enterMessage;
+
+    /** 离开保护区时显示的消息 */
     private String leaveMessage;
+
+    /** 击退力度 */
     private double pushBackStrength;
+
+    /** 是否播放音效 */
     private boolean playSound;
+
+    /** 音效类型 */
     private Sound soundEffect;
 
-    // 可视化配置
+    // ========== 可视化配置字段 ==========
+    /** 可视化持续时间（秒） */
     private int durationSeconds;
+
+    /** 发光等级 */
     private int glowLevel;
+
+    /** 盔甲架是否不可见 */
     private boolean armorstandInvisible;
+
+    /** 是否显示名称 */
     private boolean showName;
+
+    /** 名称格式 */
     private String nameFormat;
+
+    /** 标记点之间的间距 */
     private double markerSpacing;
+
+    /** 是否播放生成音效 */
     private boolean playSummonSound;
+
+    /** 生成音效类型 */
     private Sound summonSound;
 
-    // 正在活动的可视化会话
+    /** 是否为盔甲架头盔加入方块 */
+    private boolean armorstandEquipBlock;
+
+    /** 加入的方块类型 */
+    private ItemStack armorstandHelmetBlock;
+
+    // ========== 活动会话字段 ==========
+    /** 当前活跃的可视化会话（按玩家UUID索引） */
     private final Map<UUID, VisualizationSession> activeSessions;
 
-    // 记录玩家状态：是否在保护区内
+    /** 记录玩家状态：是否在保护区内（按玩家UUID索引） */
     private final Map<UUID, Boolean> playerRegionStatus;
     
     // 玩家虚拟墙壁偏好设置
     private final Map<UUID, PlayerVirtualWallPrefs> playerPrefs;
     private File prefsFile;
 
-    // 虚拟墙壁反馈类型枚举
-    public enum FeedbackType {
-        NONE, MESSAGE, PUSH_BACK, BOTH
+    /**
+     * 虚拟墙壁反馈类型枚举
+     */
+    private enum FeedbackType {
+        /** 无反馈 */
+        NONE,
+        /** 仅消息 */
+        MESSAGE,
+        /** 仅击退 */
+        PUSH_BACK,
+        /** 消息和击退 */
+        BOTH
     }
 
-    // 可视化会话记录
+    /**
+     * 可视化会话记录
+     * 保存单个玩家的可视化状态和相关数据
+     */
     private static class VisualizationSession {
+        /** 此会话中生成的所有盔甲架 */
         List<ArmorStand> armorStands;
+
+        /** 自动清理任务 */
         BukkitRunnable cleanupTask;
+
+        /** 拥有此会话的玩家 */
         Player player;
+
+        /** 会话创建时间（毫秒） */
         long createTime;
 
+        /**
+         * 构造可视化会话
+         *
+         * @param player 拥有此会话的玩家
+         */
         VisualizationSession(Player player) {
             this.player = player;
             this.armorStands = new ArrayList<>();
@@ -90,6 +158,33 @@ public class RegionVisualizer implements Listener {
         public void setPlaySound(boolean playSound) { this.playSound = playSound; }
     }
 
+    // 玩家虚拟墙壁偏好设置类
+    public static class PlayerVirtualWallPrefs {
+        private boolean enabled;
+        private FeedbackType feedbackType;
+        private boolean playSound;
+
+        public PlayerVirtualWallPrefs(boolean enabled, FeedbackType feedbackType, boolean playSound) {
+            this.enabled = enabled;
+            this.feedbackType = feedbackType;
+            this.playSound = playSound;
+        }
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+        public FeedbackType getFeedbackType() { return feedbackType; }
+        public void setFeedbackType(FeedbackType feedbackType) { this.feedbackType = feedbackType; }
+
+        public boolean isPlaySound() { return playSound; }
+        public void setPlaySound(boolean playSound) { this.playSound = playSound; }
+    }
+
+    /**
+     * 构造区域可视化管理器
+     *
+     * @param plugin 插件主类实例
+     */
     public RegionVisualizer(NoSpawnPlugin plugin) {
         this.plugin = plugin;
         this.activeSessions = new ConcurrentHashMap<>();
@@ -103,6 +198,9 @@ public class RegionVisualizer implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
+    /**
+     * 从配置文件重新加载设置
+     */
     public void reload() {
         // 加载虚拟墙壁配置
         virtualWallEnabled = plugin.getConfig().getBoolean("virtual-wall.enabled", true);
@@ -112,6 +210,7 @@ public class RegionVisualizer implements Listener {
         } catch (IllegalArgumentException e) {
             feedbackType = FeedbackType.BOTH;
         }
+        // 翻译颜色代码
         enterMessage = ChatColor.translateAlternateColorCodes('&',
                 plugin.getConfig().getString("virtual-wall.enter-message",
                         "&a[提示] 你已进入保护区，保护区域无怪物生成"));
@@ -138,6 +237,10 @@ public class RegionVisualizer implements Listener {
                 plugin.getConfig().getString("boundary-visualization.name-format", "&b● 边界点"));
         markerSpacing = plugin.getConfig().getDouble("boundary-visualization.marker-spacing", 3.0);
         playSummonSound = plugin.getConfig().getBoolean("boundary-visualization.play-summon-sound", true);
+        armorstandEquipBlock = plugin.getConfig().getBoolean("boundary-visualization.armorstand-equip-block", false);
+
+        String materialName = plugin.getConfig().getString("boundary-visualization.armorstand-helmet-block", "STONE");
+        armorstandHelmetBlock = convertStringToMaterial(materialName);
 
         try {
             summonSound = Sound.valueOf(
@@ -147,7 +250,7 @@ public class RegionVisualizer implements Listener {
             playSummonSound = false;
         }
 
-        // 参数校验
+        // 参数校验和限制
         if (markerSpacing < 1.0) markerSpacing = 1.0;
         if (glowLevel < 0) glowLevel = 0;
         if (glowLevel > 255) glowLevel = 255;
@@ -256,8 +359,24 @@ public class RegionVisualizer implements Listener {
         savePlayerPreferences();
     }
 
+    /** 暂时给reload 提供一个 helper func
+     *
+     * @param materialName 方块名称
+     * */
+    public ItemStack convertStringToMaterial(String materialName) {
+        Material material = Material.matchMaterial(materialName.toUpperCase());
+        if (material == null || !material.isBlock()) {
+            plugin.getLogger().warning("配置的材质 '" + materialName + "' 无效，已自动切换为 STONE");
+            material = Material.STONE;
+        }
+
+        return new ItemStack(material);
+    }
+
     /**
      * 虚拟墙壁核心：检测实体是否进入保护区并给予反馈（状态变化时触发）
+     *
+     * @param entity 要检测的实体
      */
     public void checkAndHandleEntityEntry(Entity entity) {
         if (!(entity instanceof Player)) return;
@@ -293,6 +412,9 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 判断位置是否在保护区内（精确）
+     *
+     * @param location 要检查的位置
+     * @return 如果在保护区内则返回true
      */
     private boolean isInProtectedRegion(Location location) {
         Location center = plugin.getCenterLocation();
@@ -334,6 +456,9 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 应用虚拟墙壁反馈
+     *
+     * @param player 要应用反馈的玩家
+     * @param isEntering true表示进入，false表示离开
      */
     private void applyVirtualWallFeedback(Player player, PlayerVirtualWallPrefs prefs, boolean isEntering) {
         // 发送消息反馈
@@ -365,6 +490,8 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 为玩家创建边界可视化（盔甲架投影）- 显示完整的3D边界
+     *
+     * @param player 要显示可视化的玩家
      */
     public void createBoundaryVisualization(Player player) {
         // 检查权限
@@ -420,6 +547,9 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 计算3D边界点的位置（方形和圆形都显示完整3D）
+     *
+     * @param center 区域中心
+     * @return 边界点位置列表
      */
     private List<Location> calculateBoundaryPoints3D(Location center) {
         List<Location> points = new ArrayList<>();
@@ -545,6 +675,16 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 生成两点之间的线条点
+     *
+     * @param points 要添加点的列表
+     * @param world 世界
+     * @param x1 起点X坐标
+     * @param y1 起点Y坐标
+     * @param z1 起点Z坐标
+     * @param x2 终点X坐标
+     * @param y2 终点Y坐标
+     * @param z2 终点Z坐标
+     * @param numPoints 要生成的点数
      */
     private void generateLine(List<Location> points, World world,
                               double x1, double y1, double z1,
@@ -560,6 +700,10 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 生成盔甲架实体
+     *
+     * @param player 玩家
+     * @param points 要放置盔甲架的位置列表
+     * @return 可视化会话
      */
     private VisualizationSession spawnArmorStands(Player player, List<Location> points) {
         VisualizationSession session = new VisualizationSession(player);
@@ -576,14 +720,20 @@ public class RegionVisualizer implements Listener {
                 ArmorStand armorStand = world.spawn(point, ArmorStand.class);
 
                 // 配置盔甲架属性
-                armorStand.setVisible(!armorstandInvisible);
-                armorStand.setGravity(false); // 禁止重力，防止下落
-                armorStand.setInvulnerable(true); // 无敌
-                armorStand.setCollidable(false); // 无碰撞
-                armorStand.setMarker(true); // 设为标记，使其不可见且无碰撞
-                armorStand.setSmall(true); // 小型盔甲架
-                armorStand.setBasePlate(false); // 移除底座
-                armorStand.setArms(false); // 移除手臂
+                armorStand.setVisible(!armorstandInvisible);  // 设置可见性
+                armorStand.setGravity(false);                 // 禁止重力，防止下落
+                armorStand.setInvulnerable(true);             // 无敌
+                armorStand.setCollidable(false);              // 无碰撞
+                armorStand.setMarker(true);                   // 设为标记，使其不可见且无碰撞
+                armorStand.setSmall(true);                    // 小型盔甲架
+                armorStand.setBasePlate(false);               // 移除底座
+                armorStand.setArms(false);                    // 移除手臂
+
+                if (armorstandEquipBlock) {
+                    if(armorstandHelmetBlock != null) {
+                        armorStand.getEquipment().setHelmet(armorstandHelmetBlock);   //设置头盔方块
+                    }
+                }
 
                 // 设置名称
                 if (showName) {
@@ -627,6 +777,8 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 取消玩家的可视化效果
+     *
+     * @param player 玩家
      */
     public void cancelPlayerVisualization(Player player) {
         VisualizationSession session = activeSessions.remove(player.getUniqueId());
@@ -663,6 +815,8 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 玩家退出时清理状态记录
+     *
+     * @param player 退出的玩家
      */
     public void handlePlayerQuit(Player player) {
         // 清理可视化会话
@@ -708,6 +862,8 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 获取虚拟墙壁启用状态
+     *
+     * @return 如果虚拟墙壁启用则返回true
      */
     public boolean isVirtualWallEnabled() {
         return virtualWallEnabled;
@@ -715,6 +871,8 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 设置虚拟墙壁开关
+     *
+     * @param enabled 是否启用
      */
     public void setVirtualWallEnabled(boolean enabled) {
         this.virtualWallEnabled = enabled;
@@ -724,6 +882,9 @@ public class RegionVisualizer implements Listener {
 
     /**
      * 获取玩家的可视化会话
+     *
+     * @param player 玩家
+     * @return 可视化会话，如果不存在则返回null
      */
     public VisualizationSession getVisualizationSession(Player player) {
         return activeSessions.get(player.getUniqueId());
