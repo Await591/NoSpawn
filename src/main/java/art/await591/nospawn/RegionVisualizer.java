@@ -3,10 +3,10 @@ package art.await591.nospawn;
 import org.bukkit.*;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -73,6 +73,12 @@ public class RegionVisualizer implements Listener {
 
     /** 生成音效类型 */
     private Sound summonSound;
+
+    /** 是否为盔甲架头盔加入方块 */
+    private boolean armorstandEquipBlock;
+
+    /** 加入的方块类型 */
+    private ItemStack armorstandHelmetBlock;
 
     // ========== 活动会话字段 ==========
     /** 当前活跃的可视化会话（按玩家UUID索引） */
@@ -178,6 +184,10 @@ public class RegionVisualizer implements Listener {
                 plugin.getConfig().getString("boundary-visualization.name-format", "&b● 边界点"));
         markerSpacing = plugin.getConfig().getDouble("boundary-visualization.marker-spacing", 3.0);
         playSummonSound = plugin.getConfig().getBoolean("boundary-visualization.play-summon-sound", true);
+        armorstandEquipBlock = plugin.getConfig().getBoolean("boundary-visualization.armorstand-equip-block", false);
+
+        String materialName = plugin.getConfig().getString("boundary-visualization.armorstand-helmet-block", "STONE");
+        armorstandHelmetBlock = convertStringToMaterial(materialName);
 
         try {
             summonSound = Sound.valueOf(
@@ -192,6 +202,20 @@ public class RegionVisualizer implements Listener {
         if (glowLevel < 0) glowLevel = 0;
         if (glowLevel > 255) glowLevel = 255;
         if (durationSeconds < 1) durationSeconds = 15;
+    }
+
+    /** 暂时给reload 提供一个 helper func
+     *
+     * @param materialName 方块名称
+     * */
+    public ItemStack convertStringToMaterial(String materialName) {
+        Material material = Material.matchMaterial(materialName.toUpperCase());
+        if (material == null || !material.isBlock()) {
+            plugin.getLogger().warning("配置的材质 '" + materialName + "' 无效，已自动切换为 STONE");
+            material = Material.STONE;
+        }
+
+        return new ItemStack(material);
     }
 
     /**
@@ -547,6 +571,12 @@ public class RegionVisualizer implements Listener {
                 armorStand.setSmall(true);                    // 小型盔甲架
                 armorStand.setBasePlate(false);               // 移除底座
                 armorStand.setArms(false);                    // 移除手臂
+
+                if (armorstandEquipBlock) {
+                    if(armorstandHelmetBlock != null) {
+                        armorStand.getEquipment().setHelmet(armorstandHelmetBlock);   //设置头盔方块
+                    }
+                }
 
                 // 设置名称
                 if (showName) {
