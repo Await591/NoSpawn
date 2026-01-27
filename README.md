@@ -26,8 +26,27 @@
 2. 启动服务器，插件会自动生成配置文件 (`plugins/NoSpawnPlugin/config.yml`)
 3. 按需编辑配置文件，并在游戏内使用 `/ns reload` 重载
 
+## 配置详细说明
+
+**区域设置** (`region`):
+- `mode`: 区域模式，`circle`（圆形/圆柱体）或 `square`（方形/立方体）
+- `radius`: 圆形模式半径（格数）
+- `circle-extends-y`: 圆形模式Y轴范围（上下各多少格）
+- `extends.x/y/z`: 方形模式三轴延伸范围
+
+**虚拟墙壁** (`virtual-wall`):
+- `feedback-type`: 反馈类型，`NONE`（无）、`MESSAGE`（消息）、`PUSH_BACK`（击退）、`BOTH`（两者）
+- `push-back-strength`: 击退强度（0.0-2.0）
+- `play-sound`: 是否播放音效
+
+**边界可视化** (`boundary-visualization`):
+- `marker-spacing`: 盔甲架间距，值越小边界点越密集（圆形建议6，方形建议3）
+- `duration-seconds`: 投影持续时间（秒）
+
 ## 命令与权限
 主命令：`/nospawn` 或 `/ns`
+
+**基础命令**:
 - `/ns help` - 显示帮助
 - `/ns toggle` - 开关插件
 - `/ns reload` - 重载配置
@@ -35,8 +54,49 @@
 - `/ns visualize <on|off>` - 显示/隐藏边界投影
 - `/ns log <on|off>` - 开关文件日志
 - `/ns status` - 查看状态
-所有命令默认需要 OP 权限
+
+**虚拟墙壁个性化命令** (`/ns vm`):
+- `/ns vm toggle` - 开关个人虚拟墙壁
+- `/ns vm feedback <MESSAGE|PUSH|BOTH>` - 设置反馈类型
+- `/ns vm sound <on|off>` - 开关音效
+- `/ns vm status` - 查看当前设置
+- `/ns vm reset` - 重置为服务器默认值
+
+**权限说明**:
+- `nospawn.virtualwall` - 使用虚拟墙壁功能（默认所有玩家）
+- `nospawn.admin` - 包含所有管理权限（默认OP）
+
+## 构建与安装
+
+**从源代码构建**:
+1. 克隆仓库: `git clone https://github.com/await591/NoSpawnPlugin.git`
+2. 进入目录: `cd NoSpawnPlugin`
+3. 构建插件: `./gradlew build`（需要Java 21）
+4. 生成的JAR文件位于 `build/libs/NoSpawnPlugin-版本号.jar`
+
+**服务器安装**:
+1. 将生成的JAR文件放入服务器的 `plugins/` 文件夹
+2. 启动服务器，插件会自动生成配置文件
+3. 编辑 `plugins/NoSpawnPlugin/config.yml` 调整设置
+4. 在游戏中使用 `/ns reload` 重载配置
+
+## 开发信息
+
+**项目结构**:
+```
+src/main/java/art/await591/nospawn/
+├── NoSpawnPlugin.java      # 主插件类，事件监听和配置管理
+├── NoSpawnCommand.java     # 命令处理器，包含Tab补全逻辑
+├── RegionVisualizer.java   # 虚拟墙壁和边界可视化功能
+└── LoggerManager.java      # 日志记录系统
+```
+
+**构建系统**:
+- 使用Gradle构建工具
+- 依赖PaperMC开发包（1.20.4-R0.1-SNAPSHOT）
 
 ## 更新日志
+- **V1.2.0**: 新增虚拟墙壁个性化设置（/ns vm命令），支持玩家独立配置和持久化存储
+- **V1.1.1**: 修复出入保护区颜色错误
 - **V1.1.0**：支持保护区域自定义（添加圆形或方形可选项），支持Y轴范围自定义。添加交互功能，进出保护区域时给予消息等反馈。添加边缘可视化，生成投影查看保护范围
 - **V1.0.0**：支持圆形范围保护，自定义过滤实体，命令热管理
