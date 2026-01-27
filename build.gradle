@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'art.await591'
-version = '1.1.1'
+version = '1.2.0'
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -17,6 +17,12 @@ repositories {
 
 dependencies {
     paperweight.paperDevBundle("1.20.4-R0.1-SNAPSHOT")
+    
+    // 测试依赖
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+    testImplementation 'org.mockito:mockito-core:5.5.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.5.0'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -30,4 +36,18 @@ processResources {
     filesMatching('plugin.yml') {
         expand props
     }
+}
+
+// 测试配置
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+}
+
+// 确保测试使用正确的类路径
+tasks.withType(Test).configureEach {
+    dependsOn 'compileJava'
+    classpath += files(sourceSets.main.output.classesDirs)
 }

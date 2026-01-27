@@ -16,10 +16,12 @@ import java.util.List;
 public class NoSpawnCommand implements CommandExecutor, TabCompleter {
     private final NoSpawnPlugin plugin;
     private static final List<String> SUB_COMMANDS = Arrays.asList(
-            "help", "reload", "toggle", "log", "visualize", "mode", "status"
+            "help", "reload", "toggle", "log", "visualize", "mode", "status", "vm"
     );
     private static final List<String> MODE_OPTIONS = Arrays.asList("circle", "square");
     private static final List<String> VISUALIZE_OPTIONS = Arrays.asList("on", "off");
+    private static final List<String> VIRTUALWALL_SUBCOMMANDS = Arrays.asList("toggle", "feedback", "sound", "status", "reset");
+    private static final List<String> FEEDBACK_OPTIONS = Arrays.asList("MESSAGE", "PUSH", "BOTH");
 
     public NoSpawnCommand(NoSpawnPlugin plugin) {
         this.plugin = plugin;
@@ -58,6 +60,9 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                 break;
             case "status":
                 sendStatus(sender);
+                break;
+            case "vm":
+                handleVirtualWall(sender, args);
                 break;
             default:
                 sender.sendMessage(ChatColor.RED + "未知子命令。输入 /ns help 查看帮助。");
@@ -180,6 +185,109 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                         ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
     }
 
+    private void handleVirtualWall(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("nospawn.virtualwall") && !sender.hasPermission("nospawn.admin")) {
+            sender.sendMessage(ChatColor.RED + "你没有使用虚拟墙壁功能的权限。");
+            return;
+        }
+
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "只有玩家可以使用虚拟墙壁命令。");
+            return;
+        }
+
+        Player player = (Player) sender;
+        RegionVisualizer visualizer = plugin.getVisualizer();
+        RegionVisualizer.PlayerVirtualWallPrefs prefs = visualizer.getPlayerPrefs(player.getUniqueId());
+
+        if (args.length < 2) {
+            sendVirtualWallHelp(player, prefs);
+            return;
+        }
+
+        String subCmd = args[1].toLowerCase();
+        switch (subCmd) {
+            case "toggle":
+                boolean newState = !prefs.isEnabled();
+                prefs.setEnabled(newState);
+                visualizer.updatePlayerPrefs(player.getUniqueId(), prefs);
+                player.sendMessage(ChatColor.GREEN + "[NoSpawn] 虚拟墙壁已" + 
+                        (newState ? ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
+                break;
+
+            case "feedback":
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "用法: /ns vm feedback <MESSAGE|PUSH|BOTH>");
+                    return;
+                }
+                try {
+                    String feedbackStr = args[2].toUpperCase();
+                    // 将 PUSH 映射为 PUSH_BACK
+                    if ("PUSH".equals(feedbackStr)) {
+                        feedbackStr = "PUSH_BACK";
+                    }
+                    RegionVisualizer.FeedbackType feedbackType = RegionVisualizer.FeedbackType.valueOf(feedbackStr);
+                    prefs.setFeedbackType(feedbackType);
+                    visualizer.updatePlayerPrefs(player.getUniqueId(), prefs);
+                    player.sendMessage(ChatColor.GREEN + "[NoSpawn] 反馈类型已设置为: " + feedbackType.name());
+                } catch (IllegalArgumentException e) {
+                    player.sendMessage(ChatColor.RED + "无效的反馈类型。可用选项: MESSAGE, PUSH, BOTH");
+                }
+                break;
+
+            case "sound":
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "用法: /ns vm sound <on|off>");
+                    return;
+                }
+                boolean soundState = args[2].equalsIgnoreCase("on");
+                prefs.setPlaySound(soundState);
+                visualizer.updatePlayerPrefs(player.getUniqueId(), prefs);
+                player.sendMessage(ChatColor.GREEN + "[NoSpawn] 音效已" + 
+                        (soundState ? ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
+                break;
+
+            case "status":
+                sendVirtualWallStatus(player, prefs);
+                break;
+
+            case "reset":
+                visualizer.resetPlayerPrefs(player.getUniqueId());
+                player.sendMessage(ChatColor.GREEN + "[NoSpawn] 虚拟墙壁设置已重置为服务器默认值");
+                break;
+
+            default:
+                player.sendMessage(ChatColor.RED + "未知子命令。可用选项: toggle, feedback, sound, status, reset");
+                break;
+        }
+    }
+
+    private void sendVirtualWallHelp(Player player, RegionVisualizer.PlayerVirtualWallPrefs prefs) {
+        player.sendMessage(ChatColor.AQUA + "=== 虚拟墙壁设置 (" + 
+                ChatColor.YELLOW + "/ns vm" + ChatColor.AQUA + ") ===");
+        player.sendMessage(ChatColor.GOLD + "/ns vm toggle" + 
+                ChatColor.GRAY + " - 开关虚拟墙壁");
+        player.sendMessage(ChatColor.GOLD + "/ns vm feedback <MESSAGE|PUSH_BACK|BOTH>" + 
+                ChatColor.GRAY + " - 设置反馈类型");
+        player.sendMessage(ChatColor.GOLD + "/ns vm sound <on|off>" + 
+                ChatColor.GRAY + " - 开关音效");
+        player.sendMessage(ChatColor.GOLD + "/ns vm status" + 
+                ChatColor.GRAY + " - 查看当前设置");
+        player.sendMessage(ChatColor.GOLD + "/ns vm reset" + 
+                ChatColor.GRAY + " - 重置为服务器默认");
+        sendVirtualWallStatus(player, prefs);
+    }
+
+    private void sendVirtualWallStatus(Player player, RegionVisualizer.PlayerVirtualWallPrefs prefs) {
+        player.sendMessage(ChatColor.GOLD + "=== 当前虚拟墙壁设置 ===");
+        player.sendMessage(ChatColor.YELLOW + "状态: " + 
+                (prefs.isEnabled() ? ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
+        player.sendMessage(ChatColor.YELLOW + "反馈类型: " + ChatColor.WHITE + prefs.getFeedbackType().name());
+        player.sendMessage(ChatColor.YELLOW + "音效: " + 
+                (prefs.isPlaySound() ? ChatColor.GREEN + "开启" : ChatColor.RED + "关闭"));
+        player.sendMessage(ChatColor.GRAY + "提示: 击退强度使用服务器固定配置");
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.AQUA + "=== NoSpawnPlugin 帮助 (" +
                 ChatColor.YELLOW + "/ns 或 /nospawn" + ChatColor.AQUA + ") ===");
@@ -197,6 +305,8 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                 ChatColor.GRAY + " - 开关日志记录");
         sender.sendMessage(ChatColor.GOLD + "/ns status" +
                 ChatColor.GRAY + " - 查看插件状态");
+        sender.sendMessage(ChatColor.GOLD + "/ns vm <toggle|feedback|sound|status|reset>" +
+                ChatColor.GRAY + " - 管理个人虚拟墙壁设置");
     }
 
     @Override
@@ -212,23 +322,51 @@ public class NoSpawnCommand implements CommandExecutor, TabCompleter {
                     completions.add(sub);
                 }
             }
-        } else if (args.length == 2) {
+        } else if (args.length >= 2) {
             switch (args[0].toLowerCase()) {
                 case "log":
-                    if ("on".startsWith(args[1].toLowerCase())) completions.add("on");
-                    if ("off".startsWith(args[1].toLowerCase())) completions.add("off");
+                    if (args.length == 2) {
+                        if ("on".startsWith(args[1].toLowerCase())) completions.add("on");
+                        if ("off".startsWith(args[1].toLowerCase())) completions.add("off");
+                    }
                     break;
                 case "visualize":
-                    for (String opt : VISUALIZE_OPTIONS) {
-                        if (opt.startsWith(args[1].toLowerCase())) {
-                            completions.add(opt);
+                    if (args.length == 2) {
+                        for (String opt : VISUALIZE_OPTIONS) {
+                            if (opt.startsWith(args[1].toLowerCase())) {
+                                completions.add(opt);
+                            }
                         }
                     }
                     break;
                 case "mode":
-                    for (String mode : MODE_OPTIONS) {
-                        if (mode.startsWith(args[1].toLowerCase())) {
-                            completions.add(mode);
+                    if (args.length == 2) {
+                        for (String mode : MODE_OPTIONS) {
+                            if (mode.startsWith(args[1].toLowerCase())) {
+                                completions.add(mode);
+                            }
+                        }
+                    }
+                    break;
+                case "vm":
+                    if (args.length == 2) {
+                        // 第二级：补全 vm 的子命令
+                        for (String sub : VIRTUALWALL_SUBCOMMANDS) {
+                            if (sub.startsWith(args[1].toLowerCase())) {
+                                completions.add(sub);
+                            }
+                        }
+                    } else if (args.length == 3) {
+                        // 第三级：根据子命令补全参数
+                        if (args[1].equalsIgnoreCase("feedback")) {
+                            for (String opt : FEEDBACK_OPTIONS) {
+                                if (opt.toLowerCase().startsWith(args[2].toLowerCase())) {
+                                    completions.add(opt);
+                                }
+                            }
+                        } else if (args[1].equalsIgnoreCase("sound")) {
+                            if ("on".startsWith(args[2].toLowerCase())) completions.add("on");
+                            if ("off".startsWith(args[2].toLowerCase())) completions.add("off");
                         }
                     }
                     break;

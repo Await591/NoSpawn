@@ -13,6 +13,9 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.*;
+import java.util.concurrent.*;
+import java.io.*;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 public class RegionVisualizer implements Listener {
     private final NoSpawnPlugin plugin;
@@ -41,9 +44,13 @@ public class RegionVisualizer implements Listener {
 
     // 记录玩家状态：是否在保护区内
     private final Map<UUID, Boolean> playerRegionStatus;
+    
+    // 玩家虚拟墙壁偏好设置
+    private final Map<UUID, PlayerVirtualWallPrefs> playerPrefs;
+    private File prefsFile;
 
     // 虚拟墙壁反馈类型枚举
-    private enum FeedbackType {
+    public enum FeedbackType {
         NONE, MESSAGE, PUSH_BACK, BOTH
     }
 
@@ -61,10 +68,35 @@ public class RegionVisualizer implements Listener {
         }
     }
 
+    // 玩家虚拟墙壁偏好设置类
+    public static class PlayerVirtualWallPrefs {
+        private boolean enabled;
+        private FeedbackType feedbackType;
+        private boolean playSound;
+
+        public PlayerVirtualWallPrefs(boolean enabled, FeedbackType feedbackType, boolean playSound) {
+            this.enabled = enabled;
+            this.feedbackType = feedbackType;
+            this.playSound = playSound;
+        }
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+        public FeedbackType getFeedbackType() { return feedbackType; }
+        public void setFeedbackType(FeedbackType feedbackType) { this.feedbackType = feedbackType; }
+
+        public boolean isPlaySound() { return playSound; }
+        public void setPlaySound(boolean playSound) { this.playSound = playSound; }
+    }
+
     public RegionVisualizer(NoSpawnPlugin plugin) {
         this.plugin = plugin;
-        this.activeSessions = new HashMap<>();
-        this.playerRegionStatus = new HashMap<>();
+        this.activeSessions = new ConcurrentHashMap<>();
+        this.playerRegionStatus = new ConcurrentHashMap<>();
+        this.playerPrefs = new ConcurrentHashMap<>();
+        this.prefsFile = new File(plugin.getDataFolder(), "virtualwall_prefs.yml");
+        loadPlayerPreferences();
         reload();
 
         // 注册事件监听器
@@ -123,12 +155,116 @@ public class RegionVisualizer implements Listener {
     }
 
     /**
+     * 加载玩家虚拟墙壁偏好设置
+     */
+    private void loadPlayerPreferences() {
+        if (!prefsFile.exists()) {
+            plugin.getLogger().info("虚拟墙壁偏好文件不存在，跳过加载。");
+            return;
+        }
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(prefsFile);
+            if (!config.contains("player-preferences")) {
+                return;
+            }
+
+            int loadedCount = 0;
+            for (String uuidStr : config.getConfigurationSection("player-preferences").getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(uuidStr);
+                    String path = "player-preferences." + uuidStr;
+                    
+                    boolean enabled = config.getBoolean(path + ".enabled", virtualWallEnabled);
+                    FeedbackType playerFeedbackType;
+                    try {
+                        playerFeedbackType = FeedbackType.valueOf(config.getString(path + ".feedback-type", this.feedbackType.name()).toUpperCase());
+                    } catch (IllegalArgumentException e) {
+                        playerFeedbackType = this.feedbackType;
+                    }
+                    boolean playerPlaySound = config.getBoolean(path + ".play-sound", this.playSound);
+                    
+                    playerPrefs.put(uuid, new PlayerVirtualWallPrefs(enabled, playerFeedbackType, playerPlaySound));
+                    loadedCount++;
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("无效的UUID格式: " + uuidStr);
+                }
+            }
+            plugin.getLogger().info("已加载 " + loadedCount + " 个玩家的虚拟墙壁偏好设置。");
+        } catch (Exception e) {
+            plugin.getLogger().severe("加载虚拟墙壁偏好设置时发生错误: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 保存玩家虚拟墙壁偏好设置（异步）
+     */
+    private void savePlayerPreferences() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                try {
+                    YamlConfiguration config = new YamlConfiguration();
+                    
+                    for (Map.Entry<UUID, PlayerVirtualWallPrefs> entry : playerPrefs.entrySet()) {
+                        String uuidStr = entry.getKey().toString();
+                        String path = "player-preferences." + uuidStr;
+                        PlayerVirtualWallPrefs prefs = entry.getValue();
+                        
+                        config.set(path + ".enabled", prefs.isEnabled());
+                        config.set(path + ".feedback-type", prefs.getFeedbackType().name());
+                        config.set(path + ".play-sound", prefs.isPlaySound());
+                    }
+                    
+                    // 确保目录存在
+                    prefsFile.getParentFile().mkdirs();
+                    config.save(prefsFile);
+                } catch (Exception e) {
+                    plugin.getLogger().severe("保存虚拟墙壁偏好设置时发生错误: " + e.getMessage());
+                }
+            }
+        }.runTaskAsynchronously(plugin);
+    }
+
+    /**
+     * 获取玩家的默认偏好设置（使用服务器配置）
+     */
+    private PlayerVirtualWallPrefs getDefaultPrefs() {
+        return new PlayerVirtualWallPrefs(virtualWallEnabled, feedbackType, playSound);
+    }
+
+    /**
+     * 获取玩家的虚拟墙壁偏好设置，如果不存在则创建默认设置
+     */
+    public PlayerVirtualWallPrefs getPlayerPrefs(UUID playerId) {
+        return playerPrefs.computeIfAbsent(playerId, k -> getDefaultPrefs());
+    }
+
+    /**
+     * 更新玩家的虚拟墙壁偏好设置并保存
+     */
+    public void updatePlayerPrefs(UUID playerId, PlayerVirtualWallPrefs prefs) {
+        playerPrefs.put(playerId, prefs);
+        savePlayerPreferences();
+    }
+
+    /**
+     * 重置玩家的虚拟墙壁偏好设置为服务器默认值
+     */
+    public void resetPlayerPrefs(UUID playerId) {
+        playerPrefs.put(playerId, getDefaultPrefs());
+        savePlayerPreferences();
+    }
+
+    /**
      * 虚拟墙壁核心：检测实体是否进入保护区并给予反馈（状态变化时触发）
      */
     public void checkAndHandleEntityEntry(Entity entity) {
-        if (!virtualWallEnabled || !(entity instanceof Player)) return;
-
+        if (!(entity instanceof Player)) return;
+        
         Player player = (Player) entity;
+        PlayerVirtualWallPrefs prefs = getPlayerPrefs(player.getUniqueId());
+        if (!prefs.isEnabled()) return;
         Location loc = player.getLocation();
 
         // 快速预筛选：检查世界
@@ -144,10 +280,10 @@ public class RegionVisualizer implements Listener {
         if (lastStatus == null || lastStatus != isInRegion) {
             if (isInRegion) {
                 // 进入保护区
-                applyVirtualWallFeedback(player, true);
+                applyVirtualWallFeedback(player, prefs, true);
             } else {
                 // 离开保护区
-                applyVirtualWallFeedback(player, false);
+                applyVirtualWallFeedback(player, prefs, false);
             }
 
             // 更新状态
@@ -199,14 +335,14 @@ public class RegionVisualizer implements Listener {
     /**
      * 应用虚拟墙壁反馈
      */
-    private void applyVirtualWallFeedback(Player player, boolean isEntering) {
+    private void applyVirtualWallFeedback(Player player, PlayerVirtualWallPrefs prefs, boolean isEntering) {
         // 发送消息反馈
-        if (feedbackType == FeedbackType.MESSAGE || feedbackType == FeedbackType.BOTH) {
+        if (prefs.getFeedbackType() == FeedbackType.MESSAGE || prefs.getFeedbackType() == FeedbackType.BOTH) {
             player.sendMessage(isEntering ? enterMessage : leaveMessage);
         }
 
         // 击退反馈（进出都有击退，方向相反）
-        if (feedbackType == FeedbackType.PUSH_BACK || feedbackType == FeedbackType.BOTH) {
+        if (prefs.getFeedbackType() == FeedbackType.PUSH_BACK || prefs.getFeedbackType() == FeedbackType.BOTH) {
             Location center = plugin.getCenterLocation();
             if (center != null) {
                 Vector direction;
@@ -221,8 +357,8 @@ public class RegionVisualizer implements Listener {
             }
         }
 
-        // 播放音效（进出都有）
-        if (playSound && soundEffect != null) {
+        // 播放音效（进出都有）- 音效类型使用服务器固定配置
+        if (prefs.isPlaySound() && soundEffect != null) {
             player.playSound(player.getLocation(), soundEffect, 0.8f, 1.0f);
         }
     }
@@ -567,6 +703,7 @@ public class RegionVisualizer implements Listener {
      */
     public void onPluginDisable() {
         cancelAllVisualizations();
+        savePlayerPreferences();
     }
 
     /**

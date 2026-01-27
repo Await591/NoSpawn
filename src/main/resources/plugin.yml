@@ -11,7 +11,7 @@ commands:
   nospawn:
     description: 管理插件配置和边界可视化
     aliases: [ns]
-    usage: /nospawn <help|reload|toggle|log|visualize|mode|status>
+    usage: /nospawn <help|reload|toggle|log|visualize|mode|status|vm>
     permission: nospawn.use
 
 permissions:
